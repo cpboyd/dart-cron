@@ -35,7 +35,7 @@ extension TzDateUtils on TZDateTime {
 }
 
 class CronExpression {
-  static final lastRegEx = RegExp(r'^L-[0-9]*[W]?');
+  static final lastRegEx = RegExp(r'^L(-[0-9]{1,2})?W?');
   static const int _serialVersionUID = 12423409423;
 
   static const int SECOND = 0;
@@ -332,173 +332,172 @@ class CronExpression {
     }
     var c = s[i];
     var char = c.codeUnitAt(0);
-    if ((char >= $A) &&
-        (char <= $Z) &&
-        (s != "L") &&
-        (s != "LW") &&
-        (lastRegEx.firstMatch(s) == null)) {
-      String sub = s.substring(i, i + 3);
-      int sval = -1;
-      int eval = -1;
-      if (type == MONTH) {
-        sval = getMonthNumber(sub) + 1;
-        if (sval <= 0) {
-          throw FormatException("Invalid Month value: '$sub'", s, i);
-        }
-        if (s.length > i + 3) {
-          c = s[i + 3];
-          if (c == '-') {
-            i += 4;
-            sub = s.substring(i, i + 3);
-            eval = getMonthNumber(sub) + 1;
-            if (eval <= 0) {
+
+    switch (char) {
+      // Parse Month or Day as 3 character string
+      case >= $A && <= $Z when lastRegEx.firstMatch(s) == null:
+        String sub = s.substring(i, i + 3);
+        int sval = -1;
+        int eval = -1;
+        switch (type) {
+          case MONTH:
+            sval = getMonthNumber(sub) + 1;
+            if (sval <= 0) {
               throw FormatException("Invalid Month value: '$sub'", s, i);
             }
-          }
-        }
-      } else if (type == DAY_OF_WEEK) {
-        sval = getDayOfWeekNumber(sub);
-        if (sval < 0) {
-          throw FormatException("Invalid Day-of-Week value: '$sub'", s, i);
-        }
-        if (s.length > i + 3) {
-          c = s[i + 3];
-          if (c == '-') {
-            i += 4;
-            sub = s.substring(i, i + 3);
-            eval = getDayOfWeekNumber(sub);
-            if (eval < 0) {
+            if (s.length > i + 3) {
+              switch (s[i + 3]) {
+                case '-':
+                  i += 4;
+                  sub = s.substring(i, i + 3);
+                  eval = getMonthNumber(sub) + 1;
+                  if (eval <= 0) {
+                    throw FormatException("Invalid Month value: '$sub'", s, i);
+                  }
+              }
+            }
+          case DAY_OF_WEEK:
+            sval = getDayOfWeekNumber(sub);
+            if (sval < 0) {
               throw FormatException("Invalid Day-of-Week value: '$sub'", s, i);
             }
-          } else if (c == '#') {
-            try {
-              i += 4;
-              nthdayOfWeek = int.parse(s.substring(i));
-              if (nthdayOfWeek < 1 || nthdayOfWeek > 5) {
-                throw Exception();
+            if (s.length > i + 3) {
+              switch (s[i + 3]) {
+                case '-':
+                  i += 4;
+                  sub = s.substring(i, i + 3);
+                  eval = getDayOfWeekNumber(sub);
+                  if (eval < 0) {
+                    throw FormatException(
+                        "Invalid Day-of-Week value: '$sub'", s, i);
+                  }
+                case '#':
+                  try {
+                    i += 4;
+                    nthdayOfWeek = int.parse(s.substring(i));
+                    if (nthdayOfWeek < 1 || nthdayOfWeek > 5) {
+                      throw Exception();
+                    }
+                  } catch (e) {
+                    throw FormatException(
+                        "A numeric value between 1 and 5 must follow the '#' option",
+                        s,
+                        i);
+                  }
+                case 'L':
+                  lastdayOfWeek = true;
+                  i++;
               }
-            } catch (e) {
-              throw FormatException(
-                  "A numeric value between 1 and 5 must follow the '#' option",
-                  s,
-                  i);
             }
-          } else if (c == 'L') {
-            lastdayOfWeek = true;
-            i++;
-          }
+          default:
+            throw FormatException(
+                "Illegal characters for this position: '$sub'", s, i);
         }
-      } else {
-        throw FormatException(
-            "Illegal characters for this position: '$sub'", s, i);
-      }
-      if (eval != -1) {
-        incr = 1;
-      }
-      addToSet(sval, eval, incr, type);
-      return (i + 3);
-    }
-
-    if (c == '?') {
-      i++;
-      if ((i + 1) < s.length && (s[i] != ' ' && s[i + 1] != '\t')) {
-        throw FormatException("Illegal character after '?': ${s[i]}", s, i);
-      }
-      if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
-        throw FormatException(
-            "'?' can only be specified for Day-of-Month or Day-of-Week.", s, i);
-      }
-      if (type == DAY_OF_WEEK && !lastdayOfMonth) {
-        int val = daysOfMonth.last;
-        if (val == NO_SPEC_INT) {
+        if (eval != -1) {
+          incr = 1;
+        }
+        addToSet(sval, eval, incr, type);
+        return (i + 3);
+      case $question:
+        i++;
+        if ((i + 1) < s.length && (s[i] != ' ' && s[i + 1] != '\t')) {
+          throw FormatException("Illegal character after '?': ${s[i]}", s, i);
+        }
+        if (type != DAY_OF_WEEK && type != DAY_OF_MONTH) {
           throw FormatException(
-              "'?' can only be specified for Day-of-Month -OR- Day-of-Week.",
+              "'?' can only be specified for Day-of-Month or Day-of-Week.",
               s,
               i);
         }
-      }
-
-      addToSet(NO_SPEC_INT, -1, 0, type);
-      return i;
-    }
-
-    if (c == '*' || c == '/') {
-      if (c == '*' && (i + 1) >= s.length) {
-        addToSet(ALL_SPEC_INT, -1, incr, type);
-        return i + 1;
-      } else if (c == '/' &&
-          ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t')) {
-        throw FormatException("'/' must be followed by an integer.", s, i);
-      } else if (c == '*') {
-        i++;
-      }
-      c = s[i];
-      if (c == '/') {
-        // is an increment specified?
-        i++;
-        if (i >= s.length) {
-          throw FormatException("Unexpected end of string.", s, i);
+        if (type == DAY_OF_WEEK && !lastdayOfMonth) {
+          int val = daysOfMonth.last;
+          if (val == NO_SPEC_INT) {
+            throw FormatException(
+                "'?' can only be specified for Day-of-Month -OR- Day-of-Week.",
+                s,
+                i);
+          }
         }
 
-        incr = getNumericValue(s, i);
-
-        i++;
-        if (incr > 10) {
+        addToSet(NO_SPEC_INT, -1, 0, type);
+        return i;
+      case $asterisk || $division:
+        if (c == '*' && (i + 1) >= s.length) {
+          addToSet(ALL_SPEC_INT, -1, incr, type);
+          return i + 1;
+        } else if (c == '/' &&
+            ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t')) {
+          throw FormatException("'/' must be followed by an integer.", s, i);
+        } else if (c == '*') {
           i++;
         }
-        checkIncrementRange(incr, type, i);
-      } else {
-        incr = 1;
-      }
-
-      addToSet(ALL_SPEC_INT, -1, incr, type);
-      return i;
-    } else if (c == 'L') {
-      i++;
-      if (type == DAY_OF_MONTH) {
-        lastdayOfMonth = true;
-      }
-      if (type == DAY_OF_WEEK) {
-        addToSet(7, 7, 0, type);
-      }
-      if (type == DAY_OF_MONTH && s.length > i) {
         c = s[i];
-        if (c == '-') {
-          ValueSet vs = getValue(0, s, i + 1);
-          lastdayOffset = vs.value;
-          if (lastdayOffset > 30) {
-            throw FormatException(
-                "Offset from last day must be <= 30", s, i + 1);
+        if (c == '/') {
+          // is an increment specified?
+          i++;
+          if (i >= s.length) {
+            throw FormatException("Unexpected end of string.", s, i);
           }
-          i = vs.pos;
-        }
-        if (s.length > i) {
-          c = s[i];
-          if (c == 'W') {
-            nearestWeekday = true;
+
+          incr = getNumericValue(s, i);
+
+          i++;
+          if (incr > 10) {
             i++;
           }
+          checkIncrementRange(incr, type, i);
+        } else {
+          incr = 1;
         }
-      }
-      return i;
-    } else if (char >= $0 && char <= $9) {
-      int val = int.parse(c);
-      i++;
-      if (i >= s.length) {
-        addToSet(val, -1, -1, type);
-      } else {
-        c = s[i];
-        char = c.codeUnitAt(0);
-        if (char >= $0 && char <= $9) {
-          ValueSet vs = getValue(val, s, i);
-          val = vs.value;
-          i = vs.pos;
-        }
-        i = checkNext(i, s, val, type);
+
+        addToSet(ALL_SPEC_INT, -1, incr, type);
         return i;
-      }
-    } else {
-      throw FormatException("Unexpected character: $c", s, i);
+      case $L:
+        i++;
+        switch (type) {
+          case DAY_OF_WEEK:
+            addToSet(7, 7, 0, type);
+          case DAY_OF_MONTH:
+            lastdayOfMonth = true;
+            if (s.length > i) {
+              c = s[i];
+              if (c == '-') {
+                ValueSet vs = getValue(0, s, i + 1);
+                lastdayOffset = vs.value;
+                if (lastdayOffset > 30) {
+                  throw FormatException(
+                      "Offset from last day must be <= 30", s, i + 1);
+                }
+                i = vs.pos;
+              }
+              if (s.length > i) {
+                c = s[i];
+                if (c == 'W') {
+                  nearestWeekday = true;
+                  i++;
+                }
+              }
+            }
+        }
+        return i;
+      case >= $0 && <= $9:
+        int val = int.parse(c);
+        i++;
+        if (i >= s.length) {
+          addToSet(val, -1, -1, type);
+        } else {
+          c = s[i];
+          char = c.codeUnitAt(0);
+          if (char >= $0 && char <= $9) {
+            ValueSet vs = getValue(val, s, i);
+            val = vs.value;
+            i = vs.pos;
+          }
+          i = checkNext(i, s, val, type);
+          return i;
+        }
+      default:
+        throw FormatException("Unexpected character: $c", s, i);
     }
 
     return i;
@@ -530,84 +529,111 @@ class CronExpression {
     var c = s[pos];
     var char = c.codeUnitAt(0);
 
-    if (c == 'L') {
-      if (type == DAY_OF_WEEK) {
-        if (val < 0 || val > 7) {
-          throw FormatException(
-              "Day-of-Week values must be between 0 and 7", val, -1);
+    switch (c) {
+      case 'L':
+        if (type == DAY_OF_WEEK) {
+          if (val < 0 || val > 7) {
+            throw FormatException(
+                "Day-of-Week values must be between 0 and 7", val, -1);
+          }
+          lastdayOfWeek = true;
+        } else {
+          throw FormatException("'L' option is not valid here. (pos=$i)", s, i);
         }
-        lastdayOfWeek = true;
-      } else {
-        throw FormatException("'L' option is not valid here. (pos=$i)", s, i);
-      }
-      TreeSet<int> set = getSet(type);
-      set.add(val);
-      i++;
-      return i;
-    }
-
-    if (c == 'W') {
-      if (type == DAY_OF_MONTH) {
-        nearestWeekday = true;
-      } else {
-        throw FormatException("'W' option is not valid here. (pos=$i)", s, i);
-      }
-      if (val > 31) {
-        throw FormatException(
-            "The 'W' option does not make sense with values larger than 31 (max number of days in a month)",
-            val,
-            i);
-      }
-      TreeSet<int> set = getSet(type);
-      set.add(val);
-      i++;
-      return i;
-    }
-
-    if (c == '#') {
-      if (type != DAY_OF_WEEK) {
-        throw FormatException("'#' option is not valid here. (pos=$i)", s, i);
-      }
-      i++;
-      try {
-        nthdayOfWeek = int.parse(s.substring(i));
-        if (nthdayOfWeek < 1 || nthdayOfWeek > 5) {
-          throw Exception();
-        }
-      } catch (e) {
-        throw FormatException(
-            "A numeric value between 1 and 5 must follow the '#' option", s, i);
-      }
-
-      TreeSet<int> set = getSet(type);
-      set.add(val);
-      i++;
-      return i;
-    }
-
-    if (c == '-') {
-      i++;
-      c = s[i];
-      int v = int.parse(c);
-      end = v;
-      i++;
-      if (i >= s.length) {
-        addToSet(val, end, 1, type);
+        TreeSet<int> set = getSet(type);
+        set.add(val);
+        i++;
         return i;
-      }
-      c = s[i];
-      char = c.codeUnitAt(0);
-      if (char >= $0 && char <= $9) {
-        ValueSet vs = getValue(v, s, i);
-        end = vs.value;
-        i = vs.pos;
-      }
-      if (i < s.length && ((c = s[i]) == '/')) {
+      case 'W':
+        if (type == DAY_OF_MONTH) {
+          nearestWeekday = true;
+        } else {
+          throw FormatException("'W' option is not valid here. (pos=$i)", s, i);
+        }
+        if (val > 31) {
+          throw FormatException(
+              "The 'W' option does not make sense with values larger than 31 (max number of days in a month)",
+              val,
+              i);
+        }
+        TreeSet<int> set = getSet(type);
+        set.add(val);
+        i++;
+        return i;
+      case '#':
+        if (type != DAY_OF_WEEK) {
+          throw FormatException("'#' option is not valid here. (pos=$i)", s, i);
+        }
+        i++;
+        try {
+          nthdayOfWeek = int.parse(s.substring(i));
+          if (nthdayOfWeek < 1 || nthdayOfWeek > 5) {
+            throw Exception();
+          }
+        } catch (e) {
+          throw FormatException(
+              "A numeric value between 1 and 5 must follow the '#' option",
+              s,
+              i);
+        }
+
+        TreeSet<int> set = getSet(type);
+        set.add(val);
+        i++;
+        return i;
+      case '-':
+        i++;
+        c = s[i];
+        int v = int.parse(c);
+        end = v;
+        i++;
+        if (i >= s.length) {
+          addToSet(val, end, 1, type);
+          return i;
+        }
+        c = s[i];
+        char = c.codeUnitAt(0);
+        if (char >= $0 && char <= $9) {
+          ValueSet vs = getValue(v, s, i);
+          end = vs.value;
+          i = vs.pos;
+        }
+        if (i < s.length && ((c = s[i]) == '/')) {
+          i++;
+          c = s[i];
+          int v2 = int.parse(c);
+          i++;
+          if (i >= s.length) {
+            addToSet(val, end, v2, type);
+            return i;
+          }
+          c = s[i];
+          char = c.codeUnitAt(0);
+          if (char >= $0 && char <= $9) {
+            ValueSet vs = getValue(v2, s, i);
+            int v3 = vs.value;
+            addToSet(val, end, v3, type);
+            i = vs.pos;
+            return i;
+          } else {
+            addToSet(val, end, v2, type);
+            return i;
+          }
+        } else {
+          addToSet(val, end, 1, type);
+          return i;
+        }
+      case '/':
+        if ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t') {
+          throw FormatException("'/' must be followed by an integer.", s, i);
+        }
+
         i++;
         c = s[i];
         int v2 = int.parse(c);
         i++;
         if (i >= s.length) {
+          checkIncrementRange(v2, type, i);
           addToSet(val, end, v2, type);
           return i;
         }
@@ -616,45 +642,13 @@ class CronExpression {
         if (char >= $0 && char <= $9) {
           ValueSet vs = getValue(v2, s, i);
           int v3 = vs.value;
+          checkIncrementRange(v3, type, i);
           addToSet(val, end, v3, type);
           i = vs.pos;
           return i;
         } else {
-          addToSet(val, end, v2, type);
-          return i;
+          throw FormatException("Unexpected character '$c' after '/'", s, i);
         }
-      } else {
-        addToSet(val, end, 1, type);
-        return i;
-      }
-    }
-
-    if (c == '/') {
-      if ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t') {
-        throw FormatException("'/' must be followed by an integer.", s, i);
-      }
-
-      i++;
-      c = s[i];
-      int v2 = int.parse(c);
-      i++;
-      if (i >= s.length) {
-        checkIncrementRange(v2, type, i);
-        addToSet(val, end, v2, type);
-        return i;
-      }
-      c = s[i];
-      char = c.codeUnitAt(0);
-      if (char >= $0 && char <= $9) {
-        ValueSet vs = getValue(v2, s, i);
-        int v3 = vs.value;
-        checkIncrementRange(v3, type, i);
-        addToSet(val, end, v3, type);
-        i = vs.pos;
-        return i;
-      } else {
-        throw FormatException("Unexpected character '$c' after '/'", s, i);
-      }
     }
 
     addToSet(val, end, 0, type);
@@ -774,30 +768,11 @@ class CronExpression {
     int max = -1;
     if (stopAt < startAt) {
       switch (type) {
-        case SECOND:
-          max = 60;
-          break;
-        case MINUTE:
-          max = 60;
-          break;
-        case HOUR:
-          max = 24;
-          break;
-        case MONTH:
-          max = 12;
-          break;
-        case DAY_OF_WEEK:
-          max = 7;
-          break;
-        case DAY_OF_MONTH:
-          max = 31;
-          break;
         case YEAR:
           throw ArgumentError.value(
               val, 'val', "Start year must be less than stop year");
         default:
-          throw ArgumentError.value(
-              type, 'type', "Unexpected type encountered");
+          max = getMax(type);
       }
       stopAt += max;
     }
@@ -818,6 +793,23 @@ class CronExpression {
 
         set.add(i2);
       }
+    }
+  }
+
+  int getMax(int type) {
+    switch (type) {
+      case SECOND || MINUTE:
+        return 60;
+      case HOUR:
+        return 24;
+      case MONTH:
+        return 12;
+      case DAY_OF_WEEK:
+        return 7;
+      case DAY_OF_MONTH:
+        return 31;
+      default:
+        throw ArgumentError.value(type, 'type', "Unexpected type encountered");
     }
   }
 
