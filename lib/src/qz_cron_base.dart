@@ -421,18 +421,18 @@ class CronExpression {
 
         addToSet(NO_SPEC_INT, -1, 0, type);
         return i;
+      case $asterisk when (i + 1) >= s.length:
+        addToSet(ALL_SPEC_INT, -1, incr, type);
+        return i + 1;
       case $asterisk || $division:
-        if (c == '*' && (i + 1) >= s.length) {
-          addToSet(ALL_SPEC_INT, -1, incr, type);
-          return i + 1;
-        } else if (c == '/' &&
-            ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t')) {
-          throw FormatException("'/' must be followed by an integer.", s, i);
-        } else if (c == '*') {
+        if (c == '*') {
           i++;
         }
         c = s[i];
         if (c == '/') {
+          if ((i + 1) >= s.length || s[i + 1] == ' ' || s[i + 1] == '\t') {
+            throw FormatException("'/' must be followed by an integer.", s, i);
+          }
           // is an increment specified?
           i++;
           if (i >= s.length) {
@@ -503,17 +503,15 @@ class CronExpression {
     return i;
   }
 
+  // TODO: Allow larger increments but fallback to single value?
   void checkIncrementRange(int incr, int type, int idxPos) {
-    if (incr > 59 && (type == SECOND || type == MINUTE)) {
-      throw FormatException("Increment > 60 : $incr", incr, idxPos);
-    } else if (incr > 23 && (type == HOUR)) {
-      throw FormatException("Increment > 24 : $incr", incr, idxPos);
-    } else if (incr > 31 && (type == DAY_OF_MONTH)) {
-      throw FormatException("Increment > 31 : $incr", incr, idxPos);
-    } else if (incr > 7 && (type == DAY_OF_WEEK)) {
-      throw FormatException("Increment > 7 : $incr", incr, idxPos);
-    } else if (incr > 12 && (type == MONTH)) {
-      throw FormatException("Increment > 12 : $incr", incr, idxPos);
+    // TODO: Check year against MAX_YEAR?
+    if (type == YEAR) {
+      return;
+    }
+    final max = getMax(type);
+    if (incr > max) {
+      throw FormatException("Increment > $max : $incr", incr, idxPos);
     }
   }
 
@@ -669,35 +667,32 @@ class CronExpression {
   }
 
   void addToSet(int val, int end, int incr, int type) {
-    TreeSet<int> set = getSet(type);
+    final set = getSet(type);
+    final start = getStartAt(type);
+    final stop = getStopAt(type);
 
-    if (type == SECOND || type == MINUTE) {
-      if ((val < 0 || val > 59 || end > 59) && (val != ALL_SPEC_INT)) {
-        throw FormatException(
-            "Minute and Second values must be between 0 and 59", val, -1);
-      }
-    } else if (type == HOUR) {
-      if ((val < 0 || val > 23 || end > 23) && (val != ALL_SPEC_INT)) {
-        throw FormatException("Hour values must be between 0 and 23", val, -1);
-      }
-    } else if (type == DAY_OF_MONTH) {
-      if ((val < 1 || val > 31 || end > 31) &&
-          (val != ALL_SPEC_INT) &&
-          (val != NO_SPEC_INT)) {
-        throw FormatException(
-            "Day of month values must be between 1 and 31", val, -1);
-      }
-    } else if (type == MONTH) {
-      if ((val < 1 || val > 12 || end > 12) && (val != ALL_SPEC_INT)) {
-        throw FormatException("Month values must be between 1 and 12", val, -1);
-      }
-    } else if (type == DAY_OF_WEEK) {
-      if ((val < 0 || val > 7 || end > 7) &&
-          (val != ALL_SPEC_INT) &&
-          (val != NO_SPEC_INT)) {
-        throw FormatException(
-            "Day-of-Week values must be between 0 and 7", val, -1);
-      }
+    switch (type) {
+      // check for year happens later
+      case YEAR:
+        break;
+      case DAY_OF_MONTH:
+      case DAY_OF_WEEK:
+        if ((val < start || val > stop || end > stop) &&
+            (val != ALL_SPEC_INT) &&
+            (val != NO_SPEC_INT)) {
+          throw FormatException(
+              "${getName(type)} values must be between $start and $stop",
+              val,
+              -1);
+        }
+      default:
+        if ((val < start || val > stop || end > stop) &&
+            (val != ALL_SPEC_INT)) {
+          throw FormatException(
+              "${getName(type)} values must be between $start and $stop",
+              val,
+              -1);
+        }
     }
 
     if ((incr == 0 || incr == -1) && val != ALL_SPEC_INT) {
@@ -718,48 +713,11 @@ class CronExpression {
       set.add(ALL_SPEC); // put in a marker, but also fill values
     }
 
-    if (type == SECOND || type == MINUTE) {
-      if (stopAt == -1) {
-        stopAt = 59;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 0;
-      }
-    } else if (type == HOUR) {
-      if (stopAt == -1) {
-        stopAt = 23;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 0;
-      }
-    } else if (type == DAY_OF_MONTH) {
-      if (stopAt == -1) {
-        stopAt = 31;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 1;
-      }
-    } else if (type == MONTH) {
-      if (stopAt == -1) {
-        stopAt = 12;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 1;
-      }
-    } else if (type == DAY_OF_WEEK) {
-      if (stopAt == -1) {
-        stopAt = 7;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 1;
-      }
-    } else if (type == YEAR) {
-      if (stopAt == -1) {
-        stopAt = MAX_YEAR;
-      }
-      if (startAt == -1 || startAt == ALL_SPEC_INT) {
-        startAt = 1970;
-      }
+    if (stopAt == -1) {
+      stopAt = stop;
+    }
+    if (startAt == -1 || startAt == ALL_SPEC_INT) {
+      startAt = start;
     }
 
     // if the end of the range is before the start, then we need to overflow into
@@ -793,6 +751,55 @@ class CronExpression {
 
         set.add(i2);
       }
+    }
+  }
+
+  String getName(int type) {
+    switch (type) {
+      case SECOND:
+        return 'Second';
+      case MINUTE:
+        return 'Minute';
+      case HOUR:
+        return 'Hour';
+      case DAY_OF_MONTH:
+        return 'Day of month';
+      case MONTH:
+        return 'Month';
+      case DAY_OF_WEEK:
+        return 'Day-of-Week';
+      case YEAR:
+        return 'Year';
+      default:
+        throw UnsupportedError("Unknown type: $type");
+    }
+  }
+
+  int getStopAt(int type) {
+    switch (type) {
+      case HOUR:
+        return 23;
+      case DAY_OF_MONTH:
+        return 31;
+      case MONTH:
+        return 12;
+      case DAY_OF_WEEK:
+        return 7;
+      case YEAR:
+        return MAX_YEAR;
+      default:
+        return 59;
+    }
+  }
+
+  int getStartAt(int type) {
+    switch (type) {
+      case DAY_OF_MONTH || MONTH:
+        return 1;
+      case YEAR:
+        return 1970;
+      default:
+        return 0;
     }
   }
 

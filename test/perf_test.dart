@@ -26,19 +26,26 @@ final Map<int, String> dayMap = {
 };
 
 final list = List.generate(60, (index) => index);
+final hour = list.take(24);
+final month = list.skip(1).take(12);
+final monStr = month.map((e) => monthMap[e]);
+final dom = list.skip(1).take(31);
+final dow = list.take(8);
+final dowStr = dow.map((e) => dayMap[e]);
+
 final strings = [
-  "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ${list.skip(1).take(31).join(",")} ${list.skip(1).take(12).join(",")} ?",
-  "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ? ${list.skip(1).take(12).join(",")} ${list.take(8).join(",")}",
-  "${list.altjoin()} ${list.altjoin()} ${list.take(24).altjoin()} ${list.skip(1).take(31).altjoin()} ${list.skip(1).take(12).altjoin()} ?",
-  "${list.altjoin()} ${list.altjoin()} ${list.take(24).altjoin()} ? ${list.skip(1).take(12).altjoin()} ${list.take(8).altjoin()}",
+  "${list.join(",")} ${list.join(",")} ${hour.join(",")} ${dom.join(",")} ${month.join(",")} ?",
+  "${list.join(",")} ${list.join(",")} ${hour.join(",")} ? ${month.join(",")} ${dow.join(",")}",
+  "${list.altjoin()} ${list.altjoin()} ${hour.altjoin()} ${dom.altjoin()} ${month.altjoin()} ?",
+  "${list.altjoin()} ${list.altjoin()} ${hour.altjoin()} ? ${month.altjoin()} ${dow.altjoin()}",
   // Strings:
-  "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ${list.skip(1).take(31).join(",")} ${list.skip(1).take(12).map((e) => monthMap[e]).join(",")} ?",
-  "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ? ${list.skip(1).take(12).map((e) => monthMap[e]).join(",")} ${list.take(8).map((e) => dayMap[e]).join(",")}",
-  "${list.altjoin()} ${list.altjoin()} ${list.take(24).altjoin()} ${list.skip(1).take(31).altjoin()} ${list.skip(1).take(12).map((e) => monthMap[e]).altjoin()} ?",
-  "${list.altjoin()} ${list.altjoin()} ${list.take(24).altjoin()} ? ${list.skip(1).take(12).map((e) => monthMap[e]).altjoin()} ${list.take(8).map((e) => dayMap[e]).altjoin()}",
+  "${list.join(",")} ${list.join(",")} ${hour.join(",")} ${dom.join(",")} ${monStr.join(",")} ?",
+  "${list.join(",")} ${list.join(",")} ${hour.join(",")} ? ${monStr.join(",")} ${dowStr.join(",")}",
+  "${list.altjoin()} ${list.altjoin()} ${hour.altjoin()} ${dom.altjoin()} ${monStr.altjoin()} ?",
+  "${list.altjoin()} ${list.altjoin()} ${hour.altjoin()} ? ${monStr.altjoin()} ${dowStr.altjoin()}",
   // TODO: Multiple L?
-  // "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ${list.skip(1).take(31).ljoin(",")} ${list.skip(1).take(12).join(",")} ?",
-  // "${list.join(",")} ${list.join(",")} ${list.take(24).join(",")} ? ${list.skip(1).take(12).join(",")} ${list.take(8).ljoin(",", true)}",
+  // "${list.join(",")} ${list.join(",")} ${hour.join(",")} ${dom.ljoin(",")} ${month.join(",")} ?",
+  // "${list.join(",")} ${list.join(",")} ${hour.join(",")} ? ${month.join(",")} ${dow.ljoin(",", true)}",
 ];
 
 extension IntAltJoin<T> on Iterable<T> {
